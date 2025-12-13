@@ -1,10 +1,10 @@
 
 # **LagMemo**: **La**nguage 3D **G**aussian Splatting **Me**mory for **M**ulti-modal **O**pen-vocabulary Multi-goal Visual Navigation
 
-> **Current Scope:** This repository currently focuses on the **Visual Navigation** implementation of LagMemo. It provides the codebase for reproducing navigation experiments using pre-computed representations and goal lists.
+> **Current Scope:** This repository currently focuses on the **Visual Navigation** implementation of LagMemo. It provides the codebase for reproducing navigation experiments using pre-reconstructed GS memory and goal lists.
 
 ## 📅 News
-- **[2025/12/13]** 🚀 **Open Source Release:** The navigation evaluation code for LagMemo is now available! Includes environment setup, `glue_agent` implementation, and baseline configurations.
+- **[2025/12/13]** 🚀 **Codes ** The navigation evaluation code for LagMemo is currently being cleaned up and organized, including environment setup, lagmemo agent implementation. A polished version will be released soon.
 
 ---
 
@@ -20,7 +20,7 @@
 - [ ] **Vlmaps:** Baseline implementation for comparison.
 
 ### 🛠 Code & Data
-- [x] **Refactoring:** Fixed similarity calculation bugs and improved stability.
+- [ ] **Refactoring:** Fixed similarity calculation bugs and improved stability.
 - [ ] **Data Recording:** Validated on new 3-episode scene datasets.
 - [ ] **Mapping Module:** (Planned) Code for generating 3DGS maps from raw trajectories.
 
