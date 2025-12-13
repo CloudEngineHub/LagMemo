@@ -1,22 +1,30 @@
 
-## This is a project for Lagmemo
+# **LagMemo**: **La**nguage 3D **G**aussian Splatting **Me**mory for **M**ulti-modal **O**pen-vocabulary Multi-goal Visual Navigation
 
-- **Update 2025/5/23:** Provide 2D-map download path for two-stage 3dgs-nav, and the installation method of the CLIP and SEEM is given.
+> **Current Scope:** This repository currently focuses on the **Visual Navigation** implementation of LagMemo. It provides the codebase for reproducing navigation experiments using pre-computed representations and goal lists.
 
-- **Usage of latest code please refer to glue_agent.py**
+## 📅 News
+- **[2025/12/13]** 🚀 **Open Source Release:** The navigation evaluation code for LagMemo is now available! Includes environment setup, `glue_agent` implementation, and baseline configurations.
 
-## Progress Status 2025.8.11
+---
 
-### Code
-- [x] Fixing similarity bug and re-test
+## 📝 Project Status & Roadmap
 
-### Experiment
-- [x] Lagmemo  
-- [x] Vlmaps* 
-- [x] Frontier Exploration*  
+### 🚀 Core Features (Navigation)
+- [x] **LagMemo Agent:** Implementation of the glue-based navigation agent (`glue_agent.py`).
+- [x] **Goal Verification:** Multi-goal consistency check and termination logic.
+- [x] **Environment:** Habitat-Lab integration with custom sensors.
 
-### Others
-- [x] Data record for new 3-episodes scenes
+### 🧪 Baselines & Comparisons
+- [ ] **Frontier Exploration:** Integrated for exploration baselines.
+- [ ] **Vlmaps:** Baseline implementation for comparison.
+
+### 🛠 Code & Data
+- [x] **Refactoring:** Fixed similarity calculation bugs and improved stability.
+- [ ] **Data Recording:** Validated on new 3-episode scene datasets.
+- [ ] **Mapping Module:** (Planned) Code for generating 3DGS maps from raw trajectories.
+
+---
 
 ## Data
 
@@ -28,12 +36,18 @@ ln -s hm3d_path /path/to/data/scene_datasets/hm3d
 
 ```
 
+This repository focuses on multi-goal visual navigation and goal verification mechanism using pre-computed navigation waypoints.
+Please download the required data files from [Link](https://disk.pku.edu.cn/link/AA6BD829693D7E4987B6870878EE5C57F8) and place them in the `data/` directory:
+1.  **`lagmemo_goal.json`**: Contains waypoints calculated by the mapping and memory module.
+2.  **`goal_list.json`**: A list of goals required to ensure the program runs without errors.
+
 The file structure should be as follow:
 
 ```bash
 .
 ├── data
 │   ├── goal_list.json
+│   ├── lagmemo_goal.json
 │   ├── datasets
 │   │   └── goat
 │   │   |   └── hm3d
@@ -48,67 +62,111 @@ The file structure should be as follow:
 │   │   │   ├── ...
 ```
 
-You can find predownloaded 2D-map for two-stage 3dgs navigation in [global_map_seem](https://disk.pku.edu.cn/link/AA96EFEAD6141C43CE88B2ECD6487E0534), put it on root directory.
+
+
+<!-- You can find predownloaded 2D-map for two-stage 3dgs navigation in [global_map_seem](https://disk.pku.edu.cn/link/AA96EFEAD6141C43CE88B2ECD6487E0534), put it on root directory. -->
 
 ## Installation
 
-**If you get an error when following this tutorial, please read the `Problem` section first before taking next action**
+<!-- **If you get an error when following this tutorial, please read the `Problem` section first before taking next action** -->
 
+### 1. Clone codes and create Environments
 ```bash
+# git clone our codes and switch branch to 3dgs
+# git clone https://github.com/happywangmakeit/lagmemo.git
+# cd lagmemo
+# git checkout 3dgs
+# git clone & cd lagmemo
 
 # create conda env
-conda env create -n lagmemo -f environment.yml
-
+conda create -n lagmemo python=3.9
 conda activate lagmemo
+```
 
+### 2. CUDA Configuration
+This project requires CUDA 11.8. Please verify your setup before proceeding.
+
+1. **Check Version**: Run nvcc -V to check your current compiler version.
+
+2. **Install/Switch (If needed)**:
+
+    * Option A: install the CUDA Toolkit 11.8 directly within your Conda environment
+    
+        ```bash
+        conda install -c "nvidia/label/cuda-11.8.0" cuda-toolkit
+        ```
+
+    * Option B (System-level): If you have CUDA 11.8 installed at /usr/local/cuda-11.8, switch using environment variables:
+
+        ```bash
+        export CUDA_HOME=/usr/local/cuda-11.8
+        export PATH=${CUDA_HOME}/bin:${PATH}
+        export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+        ```
+
+### 3. Install GCC/G++ 11 Compiler
+```bash
+conda install -c conda-forge gcc_linux-64=11 gxx_linux-64=11 sysroot_linux-64=2.17
+```
+
+check version, make sure GCC 11
+```bash
+x86_64-conda-linux-gnu-cc --version
+x86_64-conda-linux-gnu-c++ --version
+```
+
+
+### 4. install dependencies
+```bash
+conda env update --name lagmemo --file environment.yml
+pip install -r requirements.txt
+conda install -c conda-forge pynput
+```
+
+### 5. install navigation agents
+```bash
 # Install the core package
 python -m pip install -e src/lagmemo
+```
 
+### 6. install submodules
+```bash
 # initialize submodules
 git submodule update --init --recursive 
 # src/lagmemo/lagmemo/perception/detection/detic/Detic src/third_party/detectron2 src/third_party/contact_graspnet src/lagmemo/lagmemo/agent/imagenav_agent/SuperGluePretrainedNetwork src/third_party/frontier_exploration
 
-# dection module
+# install specific pytorch 
+pip install torch==2.1.2+cu118 torchvision==0.16.2+cu118 torchaudio==2.1.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+# detectron2 module
 cd src/third_party
-python -m pip install -e detectron2 # torch2.1.2+cu118 is available if get error here, and some mistake maybe caused by cpu version torch, please pay attention, refer to Problem section
-cd ../..
-
-cd src/lagmemo/lagmemo/perception/detection/detic/Detic/
-pip install -r requirements.txt
-mkdir models
-wget https://dl.fbaipublicfiles.com/detic/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth -O models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth --no-check-certificate
-
-# you should run demo if env correctly
-wget https://web.eecs.umich.edu/~fouhey/fun/desk/desk.jpg
-python demo.py --config-file configs/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.yaml --input desk.jpg --output out2.jpg --vocabulary custom --custom_vocabulary headphone,webcam,paper,coffe --confidence-threshold 0.3 --opts MODEL.WEIGHTS models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth
-
-mkdir -p data/checkpoints
-cd data/checkpoints
-wget https://dl.fbaipublicfiles.com/habitat/data/baselines/v1/ovmm_baseline_home_robot_challenge_2023.zip
-unzip ovmm_baseline_home_robot_challenge_2023.zip
+python -m pip install -e detectron2 --no-build-isolation 
+# # Detic module (not used)
+# cd ../..
+# cd src/lagmemo/lagmemo/perception/detection/detic/Detic/
+# pip install -r requirements.txt
+# mkdir models
+# wget https://dl.fbaipublicfiles.com/detic/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth -O models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth --no-check-certificate
+# # you should run demo if env correctly
+# wget https://web.eecs.umich.edu/~fouhey/fun/desk/desk.jpg
+# python demo.py --config-file configs/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.yaml --input desk.jpg --output out2.jpg --vocabulary custom --custom_vocabulary headphone,webcam,paper,coffe --confidence-threshold 0.3 --opts MODEL.WEIGHTS models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth
+# mkdir -p data/checkpoints
+# cd data/checkpoints
+# wget https://dl.fbaipublicfiles.com/habitat/data/baselines/v1/ovmm_baseline_home_robot_challenge_2023.zip
+# unzip ovmm_baseline_home_robot_challenge_2023.zip
 cd LAGMEMO_ROOT # return to repo's root, should be changed to your own path
-
 # simulation environment
 conda env update -f src/environment.yml
-
+# habitat environment
 git submodule update --init --recursive src/third_party/habitat-lab
 python -m pip install -e src/third_party/habitat-lab/habitat-lab
-python -m pip install -e src/third_party/habitat-lab/habitat-baselines
+# don't be panic if get pip conflicts
+python -m pip install -e src/third_party/habitat-lab/habitat-baselines # if pip conflict, ensure numpy==1.23.5 moviepy==1.0.3
 python -m pip install "git+https://github.com/facebookresearch/pytorch3d.git" # this is not neccessary if you have pytorch3d in your pip list
-
-# switch to goat branch
-cd src/third_party/habitat-lab
-git checkout home-robot_goat_support
-pip install -e habitat-lab
-pip install -e habitat-baselines
-cd ../../..
-
-# really to start!
-python project/habitat_lagmemo/eval_episode.py
-
+# install frontier_exploration module
+pip install -e src/third_party/frontier_exploration
 ```
 
-## CLIP and SEEM Installation
+### 7.CLIP and SEEM Installation
 
 ### Mobile-CLIP
 ```bash
@@ -128,39 +186,36 @@ timm>=0.9.5
 To install it:
 
 ```bash
-pip install -e .
+pip install -e . # don't be panic if pip conflicts, see problems to use specific version
 source get_pretrained_models.sh   # Files will be downloaded to `checkpoints` directory.
 
 cd ../../..
 
 ```
 
-Try ```python project/habitat_lagmemo/eval_episode.py```, if get an error, reinstall habitat:
+<!-- Try ```python project/habitat_lagmemo/eval_episode.py```, if get an error, reinstall habitat:
 
 ```bash
 cd src/third_party/habitat-lab
 pip install -e habitat-lab
 pip install -e habitat-baselines
-```
+``` -->
 
 
 ### SEEM
 
 ```bash
 cd src/third_party/seem
+# if empty, try to relink submodules: git submodule add -f https://github.com/happywangmakeit/seem.git src/third_party/seem
 ```
 
 ```bash
 conda install -c conda-forge mpi4py mpich
 # maybe python version changed
-pip install torch==2.1.2+cu118 torchvision==0.16.2+cu118 torchaudio==2.1.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+# pip install torch==2.1.2+cu118 torchvision==0.16.2+cu118 torchaudio==2.1.2+cu118 --index-url https://download.pytorch.org/whl/cu118
 
-# maybe there are some empty package because of cloning env, please handle it
+# don't be panic if pip conflicts, see problems to use specific version
 pip install -r requirements_our.txt
-
-```
-
-```bash
 pip install -e .
 ```
 
@@ -203,35 +258,19 @@ pip install -e .
 
 - **After install them, please change the relative args in `eval_episode.py`**
 
-## Problem
-
-#### When having problem with installing detectron2:
-
+# ready to start!
 ```bash
-conda install pytorch torchvision torchaudio cudatoolkit=11.2 -c pytorch # install torch2.5.1
-python -m pip install -e detectron2
-conda uninstall libtorch # downgrade torch version
-pip install torch==2.1.2+cu118 torchvision==0.16.2+cu118 torchaudio==2.1.2+cu118 --index-url https://download.pytorch.org/whl/cu118 # install torch2.1.2 cu118 which is confirmed to be correct
-
+python project/habitat_lagmemo/eval_episode_glue.py
+# output path is written in /project/config/agent/hm3d_eval.yaml DUMP_LOCATION
 ```
 
-#### When having problem with "AttributeError:'dict'object has no attribute 'env_specs'"
-
-Change all registry.env_specs to registry.keys()
+## Problems
 
 #### If you have problem with numpy 2.0.2 when installing habitat_lab, and habitat_lab is installed successfully
 
 ```bash
 pip install numpy==1.23.5 # and continue next step
 ```
-
-#### When having problem with command "python -m pip install "git+https://github.com/facebookresearch/pytorch3d.git""
-
-It's not neccessary if you have pytorch3d in your pip list
-
-#### When having problem with "import sophus"
-
-Change "sophus" to "sophuspy"
 
 #### When having pip conflicts when installing **webdataset**, **huggingface-hub**, **pyarrow**, and **timm** libraries
 
@@ -241,3 +280,12 @@ Don't panic if you encounter pip installation conflicts, this is a normal occurr
 * huggingface-hub: 0.17.3
 * pyarrow: 13.0.0
 * timm: 0.4.12
+
+#### If the `SuperGluePretrainedNetwork` directory is empty.
+```bash
+# Synchronize submodule configuration URLs
+git submodule sync src/lagmemo/lagmemo/agent/imagenav_agent/SuperGluePretrainedNetwork
+
+# Force update and initialization of the submodule
+git submodule update --init --force src/lagmemo/lagmemo/agent/imagenav_agent/SuperGluePretrainedNetwork
+```
