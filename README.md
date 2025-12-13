@@ -4,7 +4,7 @@
 > **Current Scope:** This repository currently focuses on the **Visual Navigation** implementation of LagMemo. It provides the codebase for reproducing navigation experiments using pre-reconstructed GS memory and goal lists.
 
 ## 📅 News
-- **[2025/12/13]** 🚀 **Codes ** The navigation evaluation code for LagMemo is currently being cleaned up and organized, including environment setup, lagmemo agent implementation. A polished version will be released soon.
+- **[2025/12/13]** 🚀 The navigation evaluation code for LagMemo is currently being cleaned up and organized, including environment setup, lagmemo agent implementation. A polished version will be released soon.
 
 ---
 
