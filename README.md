@@ -320,3 +320,33 @@ git submodule update --init --force src/lagmemo/lagmemo/agent/imagenav_agent/Sup
 
 #### No module named 'centernet'
 
+You need to configure the original Detic object detector for Modular GOAT.
+
+Follow these steps to set up the Detic module required for the Modular GOAT agent.
+
+##### Step 1: Verify Detic Submodule
+
+First, ensure that the Detic repository has been cloned correctly. Try initializing the submodule directly:
+
+```bash
+git submodule update --init --recursive src/lagmemo/lagmemo/perception/detection/detic/Detic
+```
+
+If the command produces no output and the target directory remains empty, force a re-initialization with the following commands:
+
+```bash
+git submodule deinit -f src/lagmemo/lagmemo/perception/detection/detic/Detic
+rm -rf src/lagmemo/lagmemo/perception/detection/detic/Detic
+git submodule update --init --recursive src/lagmemo/lagmemo/perception/detection/detic/Detic
+```
+
+##### Step 2: Install Detic Dependencies & Model
+
+Once the submodule is in place, install the required libraries and download the pre-trained Detic model weights.
+
+```bash
+cd src/lagmemo/lagmemo/perception/detection/detic/Detic/
+pip install -r requirements.txt
+mkdir models
+wget https://dl.fbaipublicfiles.com/detic/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth -O models/Detic_LCOCOI21k_CLIP_SwinB_896b32_4x_ft4x_max-size.pth --no-check-certificate
+```
