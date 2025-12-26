@@ -36,7 +36,7 @@ from habitat.core.env import Env
 from lagmemo.core.interfaces import DiscreteNavigationAction
 from lagmemo.env.habitat_lagmemo_env import HabitatGoatEnv
 from lagmemo.agent.lagmemo_agent.data_record_agent import DataRecordAgent
-from lagmemo.agent.lagmemo_agent.goat_agent import GoatAgent
+from lagmemo.agent.lagmemo_agent.exped_goat_agent import GoatAgent
 # from lagmemo.agent.lagmemo_agent.clip_agent import CLIPAgent
 
 if __name__ == "__main__":
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--baseline_config_path",
         type=str,
-        default="project/config/agent/hm3d_eval_goat.yaml",
+        default="project/config/agent/hm3d_eval_exp_goat.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(

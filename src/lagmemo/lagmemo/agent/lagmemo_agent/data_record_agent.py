@@ -30,10 +30,24 @@ from lagmemo.perception.detection.maskrcnn.coco_categories import coco_categorie
 from .lagmemo_agent_module import GoatAgentModule
 from .lagmemo_matching import GoatMatching
 
+from scipy.spatial.transform import Rotation as R
 # For visualizing exploration issues
 debug_frontier_map = False
 # from lagmemo.vlfm_vis.habitat_visualizer import HabitatVis
 # hab_vis = HabitatVis()
+
+def compute_transform_params_v2(global_pose, local_pose):
+    # new version
+    # init_local_pose = np.array([0,0,0])
+    qx, qy, qz, qw = global_pose[:4]
+    quat = np.array([qx, qy, qz, qw])
+    q = R.from_quat(quat)
+    init_global_pose = np.array(global_pose[4:])
+    point_world = q.inv().apply(init_global_pose)
+    tran = point_world - local_pose
+    rot_matrix = R.from_quat(quat).as_matrix().T
+    
+    return rot_matrix, tran
 
 class DataRecordAgent(Agent):
     """Simple object nav agent based on a 2D semantic map"""
@@ -272,7 +286,8 @@ class DataRecordAgent(Agent):
     # simulation environment
     # ---------------------------------------------------------------------
 
-    def reset(self):
+    def reset(self, start_position=None, start_rotation=None, 
+              lagmemo_goals = None):
         """Initialize agent state."""
         self.reset_vectorized()
         self.planner.reset()
@@ -283,6 +298,12 @@ class DataRecordAgent(Agent):
         self.prev_position = None
         self.ctr = 0
 
+        init_local_pose = np.array([0,0,0])
+        qx, qy, qz, qw = start_rotation
+        init_global_pose = np.array([qx, qy, qz, qw, start_position[0], start_position[1], start_position[2]])
+
+        self.rot_matrix_v2, self.tran_v2 = compute_transform_params_v2(init_global_pose,init_local_pose)
+        self.td_transform = None
     # from PIL import Image
     # def keep_img(img, path, type = ''):
     #     if type == 'depth':
@@ -299,7 +320,7 @@ class DataRecordAgent(Agent):
     #     img = np.array(img,dtype=np.uint8)
     #     img = Image.fromarray(img)
     #     img.save(path)
-    def act(self, obs: Observations) -> Tuple[DiscreteNavigationAction, Dict[str, Any]]:
+    def act(self, obs: Observations, current_task_idx) -> Tuple[DiscreteNavigationAction, Dict[str, Any]]:
         """Act end-to-end."""
         current_task = obs.task_observations["tasks"][self.current_task_idx]
         task_type = current_task["type"]
@@ -308,8 +329,10 @@ class DataRecordAgent(Agent):
         # 1 - obs preprocessing
         import matplotlib.pyplot as plt
         import os
-        output_vis_path = "/home/wxl/lagmemo/data_record/home_robot_obs/"
-        output_data_path = "/home/wxl/lagmemo/data_record/RGB_depth/"
+        # output_vis_path = "/home/wxl/lagmemo/data_record/home_robot_obs/"
+        # output_data_path = "/home/wxl/lagmemo/data_record/RGB_depth/"
+        # output_vis_path = f"/home/zht/github_play/lagmemo/data_record_output0706/home_robot_obs/{current_task_idx}/"
+        output_data_path = f"/20TBHDD4/sxk2/lagmemo/1216_record/RGB_depth/{current_task_idx}/"
         rgb_path = output_data_path + "rgb/"
         dep_path = output_data_path + "depth/"
         pos_path = output_data_path
@@ -317,10 +340,9 @@ class DataRecordAgent(Agent):
             os.makedirs(rgb_path)
         if not os.path.exists(dep_path):
             os.makedirs(dep_path)
-
         image_rgb = obs.rgb
         image_depth = obs.depth
-        plt.imsave(output_data_path + "rgb_" + str(self.total_timesteps[0]) + ".png", image_rgb)
+        plt.imsave(rgb_path + "rgb_" + str(self.total_timesteps[0]) + ".png", image_rgb)
         max_depth = 5
         min_depth = 0.5
         # 10000代表需要调成0的值
@@ -332,17 +354,21 @@ class DataRecordAgent(Agent):
         normalized_depth = (image_depth-min_depth)/(max_depth-min_depth)
         normalized_depth[normalized_depth>1] = 1
         plt.imshow(normalized_depth, cmap='gray')
-        plt.savefig(output_data_path + "depth_" + str(self.total_timesteps[0]) + ".png")
-
+        plt.savefig(dep_path + "depth_" + str(self.total_timesteps[0]) + ".png")
+        # 保存obs.globalpose
+        pose_data = np.insert(obs.globalpose, 0, self.total_timesteps[0])
+        with open(pos_path + "global_pose.txt", "a") as f:
+            formats = ['%d'] + ['%.17g'] * 7
+            np.savetxt(f, pose_data.reshape(1, -1), fmt=formats, delimiter=' ')
         # 2 - frontier map 不需要
         x, y = obs.gps
         robot_xy = np.array([x, y])
         print("agent position:", robot_xy)
         
         
-        # 3 - value_map 暂空
+        # 3 - value_map 
 
-        # 键盘控制action
+        # keyboard control action
         import sys
         def get_keyboard_input():
             """阻塞式等待用户输入并返回对应动作"""
@@ -380,20 +406,32 @@ class DataRecordAgent(Agent):
         #                 return DiscreteNavigationAction.STOP
         # action = wait_for_key()
         # 6 - visualize
-        # 这里的vis是在yaml文件中的输出
-        goal_text_desc = {
-                    x: y
-                    for x, y in obs.task_observations["tasks"][
-                        self.current_task_idx
-                    ].items()
-                    if x != "image"
-                }
+        sensor_pose = np.array([
+            obs.globalpose[4],
+            obs.globalpose[5],
+            obs.globalpose[6],
+            obs.globalpose[0],
+            obs.globalpose[1],
+            obs.globalpose[2],
+            obs.globalpose[3],
+        ])
         info = {
-            "goal_name": goal_text_desc,
+            "rgb_frame": obs.rgb,
             "semantic_frame": obs.task_observations["semantic_frame"],
             "timestep": self.total_timesteps[0],
+            "last_td_map": obs.task_observations.get("top_down_map"),
+            "obstacle_map": np.zeros(self.planner.map_shape),
+            "goal_map": np.zeros(self.planner.map_shape),
+            "closest_goal_map": np.zeros(self.planner.map_shape),
+            "sensor_pose": sensor_pose,
+            "explored_map": np.zeros(self.planner.map_shape),
+            "last_goal_image": None,
             "found_goal": False,
         }
+        if self.imagenav_visualizer is not None:
+            self.imagenav_visualizer.visualize(**info)
+
+        info = None
         self.total_timesteps[0] += 1
         # 7 - reset
         if action == DiscreteNavigationAction.STOP:

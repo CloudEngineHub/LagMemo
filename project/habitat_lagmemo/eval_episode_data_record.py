@@ -16,30 +16,20 @@ from pprint import pprint
 import numpy as np
 from tqdm import tqdm
 
-# TODO Install home_robot, home_robot_sim and remove this
-# sys.path.insert(
-#     0,
-#     str(Path(__file__).resolve().parent.parent.parent / "src"),
-# )
-# sys.path.insert(
-#     0,
-#     str(Path(__file__).resolve().parent.parent.parent / "src/home_robot_sim"),
-# )
-
 from config_utils import get_config
 from habitat.core.env import Env
 
-# from lagmemo.agent.lagmemo_agent.lagmemo_agent import GoatAgent
-# TODO
-# from lagmemo.agent.lagmemo_agent.goat_agent import GoatAgent
-# from lagmemo.agent.lagmemo_agent.vlfm_agent import MTVLFMAgent
 from lagmemo.core.interfaces import DiscreteNavigationAction
 from lagmemo.env.habitat_lagmemo_env import HabitatGoatEnv
+
 from lagmemo.agent.lagmemo_agent.data_record_agent import DataRecordAgent
-from lagmemo.agent.lagmemo_agent.goat_agent import GoatAgent
-# from lagmemo.agent.lagmemo_agent.clip_agent import CLIPAgent
+import time
 
 if __name__ == "__main__":
+    
+    print("Start time:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+    start_time = time.time()
+    
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--habitat_config_path",
@@ -50,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--baseline_config_path",
         type=str,
-        default="project/config/agent/hm3d_eval_goat.yaml",
+        default="project/config/agent/hm3d_eval.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(
@@ -74,25 +64,41 @@ if __name__ == "__main__":
     parser.add_argument(
         '--seem_ckpt_path',
         type=str,
-        default='/home/wxl/lagmemo/Segment-Everything-Everywhere-All-At-Once/checkpoints/seem_focall_v0.pt',
+        default='/home/zht/github_play/lagmemo/src/third_party/seem/checkpoints/seem_focall_v0.pt',
         help='Path to SEEM checkpoint',
     )
     parser.add_argument(
         '--seem_yaml_path',
         type=str,
-        default='/home/wxl/lagmemo/Segment-Everything-Everywhere-All-At-Once/configs/seem/focall_unicl_lang_demo.yaml',
+        default='./src/third_party/seem/configs/seem/focall_unicl_lang_demo.yaml',
         help='Path to SEEM config',
     )
     parser.add_argument(
         '--mobileclip_ckpt_path',
         type=str,
-        default='/home/wxl/lagmemo/ml-mobileclip/checkpoints/mobileclip_s0.pt',
+        default='./src/third_party/ml-mobileclip/checkpoints/mobileclip_s0.pt',
         help='Path to MobileCLIP checkpoint',
+    )
+    parser.add_argument(
+        '--output_path',
+        type=str,
+        default=None,
+        help='Path to output directory for results',
+    )
+    parser.add_argument(
+        '--input_data',
+        type=str,
+        default="new_data3",
+        help='choose which data to run, e.g. "new_data3", "3_episode_data"',
     )
     print("Arguments:")
     args = parser.parse_args()
     print(json.dumps(vars(args), indent=4))
     print("-" * 100)
+    
+    lagmemo_goal_path = "/home/wxl/lagmemo/lagmemo/data/lagmemo_goal.json"
+    with open(lagmemo_goal_path, "r") as f:
+        ori_goals = json.load(f)
 
     seem_cfg = {
         'conf_path': args.seem_yaml_path,
@@ -100,15 +106,19 @@ if __name__ == "__main__":
     }
 
     config = get_config(args.habitat_config_path, args.baseline_config_path)
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/gs_data/val_seen.json.gz'
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/lagmemo_new/val_seen.json.gz'
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/new_data3/val_seen.json.gz'
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/3_episode_data/val_seen.json.gz'
-    
+    if args.output_path:
+        print("output image and results to", args.output_path)
+        config.DUMP_LOCATION = args.output_path
+    else:
+        print("output image and results to", config.DUMP_LOCATION)
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/gs_data/val_seen.json.gz'
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/lagmemo_new/val_seen.json.gz'
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/new_data3/val_seen.json.gz'
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/3_episode_data/val_seen.json.gz'
+    config['habitat']['dataset']['data_path'] = f'data/datasets/goat/hm3d/{args.input_data}/val_seen.json.gz'
     # all_scenes = os.listdir(os.path.dirname(config.habitat.dataset.data_path.format(split=config.habitat.dataset.split)) + "/content/")
     all_scenes = os.listdir('data/datasets/goat/hm3d/gs_data/content/')
     all_scenes = os.listdir('data/datasets/goat/hm3d/new_data3/content/')
-    all_scenes = os.listdir('data/datasets/goat/hm3d/3_episode_data/content/')
     all_scenes = sorted([x.split('.')[0] for x in all_scenes])
     if args.scenes == "all":
         config.habitat.dataset.content_scenes = all_scenes
@@ -120,17 +130,12 @@ if __name__ == "__main__":
     config.PRINT_IMAGES = 1
 
     config.EXP_NAME = f"{config.EXP_NAME}_{args.scene_idx}"
-    # config.EXP_FIRST = False
 
     # # initilize environment, loading dataset
     habitat_env = Env(config)
     env = HabitatGoatEnv(habitat_env, config=config)
-    # initialize agent, with different strategy
-    # agent = GoatAgent(config=config)
-    # agent = MTVLFMAgent(config=config)
-    agent = GoatAgent(config=config)
-    # agent = CLIPAgent(config=config, seem_cfg=seem_cfg, clip_cfg=args.mobileclip_ckpt_path)
-    # agent = DataRecordAgent(config=config)
+    # initialize agent
+    agent = DataRecordAgent(config=config)
 
     results_dir = os.path.join(config.DUMP_LOCATION, f"results_{args.scenes}", config.EXP_NAME)
     os.makedirs(results_dir, exist_ok=True)
@@ -139,14 +144,19 @@ if __name__ == "__main__":
 
     for i in range(len(env.habitat_env.episodes)):
         env.reset()
-        agent.reset(start_position=env.habitat_env.current_episode.start_position, start_rotation=env.habitat_env.current_episode.start_rotation)
-
-
-        t = 0
-
         scene_id = env.habitat_env.current_episode.scene_id.split("/")[-1].split(".")[0]
+
         episode = env.habitat_env.current_episode
         episode_id = episode.episode_id
+        lagmemo_goals = ori_goals[scene_id]
+        cur_goals = lagmemo_goals[episode_id]
+        cur_goals = {int(k):v for k, v in cur_goals.items()}
+        
+        agent.reset(start_position=env.habitat_env.current_episode.start_position, 
+                    start_rotation=env.habitat_env.current_episode.start_rotation,
+                    lagmemo_goals=cur_goals)
+
+        t = 0
 
         if os.path.exists(os.path.join(results_dir, "per_episode_metrics.json")):
             with open(os.path.join(results_dir, "per_episode_metrics.json"), "r") as fp:
@@ -188,7 +198,7 @@ if __name__ == "__main__":
 
                 pprint(obs_tasks)
 
-            action, info = agent.act(obs)
+            action, info = agent.act(obs, current_task_idx)
             env.apply_action(action, info=info)
             pbar.set_description(
                 f"{scene_id}_{episode_id}_{current_task_idx}"
@@ -220,22 +230,18 @@ if __name__ == "__main__":
                     env.visualizer.set_vis_dir(
                         scene_id, f"{episode_id}_{env.habitat_env.task.current_task_idx}"
                     )
+                    
                     pbar.reset()
 
         pbar.close()
 
         ep_metrics = env.get_episode_metrics()
         scene_ep_id = f"{scene_id}_{episode_id}"
-        if not config.EXP_FIRST:
-            metrics[scene_ep_id] = {"metrics": all_subtask_metrics}
-            metrics[scene_ep_id]["total_num_steps"] = t
-            metrics[scene_ep_id]["sub_task_timesteps"] = agent.sub_task_timesteps[0]
-            metrics[scene_ep_id]["tasks"] = obs_tasks
-        else:
-            metrics[scene_ep_id] = {"metrics": all_subtask_metrics[1:]}
-            metrics[scene_ep_id]["total_num_steps"] = t
-            metrics[scene_ep_id]["sub_task_timesteps"] = agent.sub_task_timesteps[0][1:]
-            metrics[scene_ep_id]["tasks"] = obs_tasks[1:]
+        
+        metrics[scene_ep_id] = {"metrics": all_subtask_metrics[1:]}
+        metrics[scene_ep_id]["total_num_steps"] = t
+        metrics[scene_ep_id]["sub_task_timesteps"] = agent.sub_task_timesteps[0][1:]
+        metrics[scene_ep_id]["tasks"] = obs_tasks[1:]
 
         try:
             for metric in list(metrics.values())[0]["metrics"][0].keys():
@@ -295,93 +301,5 @@ if __name__ == "__main__":
 
         with open(os.path.join(results_dir, "cumulative_metrics.json"), "w") as fp:
             json.dump(stats, fp, indent=4)
-
-        
-        # # 修改metrics， 2025.2.24， wxl， working
-        # # metrics[scene_ep_id] = {"metrics": all_subtask_metrics}
-        # # metrics[scene_ep_id]["total_num_steps"] = t
-        # # metrics[scene_ep_id]["sub_task_timesteps"] = agent.sub_task_timesteps[0]
-        # # metrics[scene_ep_id]["tasks"] = obs_tasks
-        # subtask_num = len(all_subtask_metrics)
-        # metrics[scene_ep_id] = {'sub_task_metrics':[], 'total_num_steps':t}
-        # for i in range(subtask_num):
-        #     import ipdb; ipdb.set_trace()
-        #     metrics[scene_ep_id]['sub_task_metrics'].append(all_subtask_metrics[i])
-        #     metrics[scene_ep_id]['sub_task_metrics'][i]['sub_task_timesteps'] = agent.sub_task_timesteps[0][i]
-        #     metrics[scene_ep_id]['sub_task_metrics'][i]['task'] = obs_tasks[i]
-        #     metrics[scene_ep_id]['sub_task_metrics'][i]['sub_task_id'] = i
-           
-        # try:
-        #     for metric in list(metrics.values())[0]["sub_task_metrics"][0].keys():
-        #         if metric == 'task' or metric == 'sub_task_id':
-        #             continue
-        #         metrics[scene_ep_id][f"{metric}_mean"] = np.round(
-        #             np.nanmean(
-        #                 np.array([y[metric] for y in metrics[scene_ep_id]["sub_task_metrics"]])
-        #             ),
-        #             4,
-        #         )
-        #         metrics[scene_ep_id][f"{metric}_median"] = np.round(
-        #             np.nanmedian(
-        #                 np.array([y[metric] for y in metrics[scene_ep_id]["sub_task_metrics"]])
-        #             ),
-        #             4,
-        #         )
-                  
-        # # try:
-        # #     for metric in list(metrics.values())[0]["metrics"][0].keys():
-        # #         metrics[scene_ep_id][f"{metric}_mean"] = np.round(
-        # #             np.nanmean(
-        # #                 np.array([y[metric] for y in metrics[scene_ep_id]["metrics"]])
-        # #             ),
-        # #             4,
-        # #         )
-        # #         metrics[scene_ep_id][f"{metric}_median"] = np.round(
-        # #             np.nanmedian(
-        # #                 np.array([y[metric] for y in metrics[scene_ep_id]["metrics"]])
-        # #             ),
-        # #             4,
-        # #         )
-        # except Exception as e:
-        #     print(e)
-        #     import pdb
-
-        #     pdb.set_trace()
-
-        # print("---------------------------------")
-
-        # with open(os.path.join(results_dir, f"per_episode_metrics_{scene_id}_{episode_id}.json"), "w") as fp:
-        #     json.dump(metrics, fp, indent=4)
-
-        # stats = {}
-
-        # for metric in list(metrics.values())[0]["sub_task_metrics"][0].keys():
-        #     if metric == 'task' or metric == 'sub_task_id':
-        #         continue
-        #     stats[f"{metric}_mean"] = np.round(
-        #         np.nanmean(
-        #             np.array(
-        #                 [
-        #                     y[metric]
-        #                     for scene_ep_id in metrics.keys()
-        #                     for y in metrics[scene_ep_id]["sub_task_metrics"]
-        #                 ]
-        #             )
-        #         ),
-        #         4,
-        #     )
-        #     stats[f"{metric}_median"] = np.round(
-        #         np.nanmedian(
-        #             np.array(
-        #                 [
-        #                     y[metric]
-        #                     for scene_ep_id in metrics.keys()
-        #                     for y in metrics[scene_ep_id]["sub_task_metrics"]
-        #                 ]
-        #             )
-        #         ),
-        #         4,
-        #     )
-
-        # with open(os.path.join(results_dir, "cumulative_metrics.json"), "w") as fp:
-        #     json.dump(stats, fp, indent=4)
+    print("End time:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+    print("Total time taken:", time.time() - start_time, "seconds")

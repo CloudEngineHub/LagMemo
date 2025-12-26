@@ -16,8 +16,36 @@
 - [x] **Environment:** Habitat-Lab integration with custom sensors.
 
 ### 🧪 Baselines & Comparisons
-- [ ] **Frontier Exploration:** Integrated for exploration baselines.
-- [ ] **Vlmaps:** Baseline implementation for comparison.
+
+- [x] **`data_record` (Data Collector)**
+
+  * **Operation**: Allows manual control of the robot via keyboard navigation in any scene.
+  * **Output**: Records raw sensor data including RGB images, depth maps, and camera poses for dataset collection or debugging.
+
+- [x] **`cow` (Naïve Exploration Baseline)**
+
+  * **Operation**: A pure exploration agent that operates without semantic guidance. It utilizes **Frontier Exploration** to traverse the environment and employs a simple visual detection mechanism to stop immediately upon spotting the target.
+  * *Note: Serves as a lower-bound baseline for search efficiency.*
+
+- [x] **`goat` (Standard Modular GOAT)**
+
+  * **Operation**: The core method. It explores the environment while using **Detic** to detect objects and build a semantic memory (2D images of objects).
+  * **Logic**: When a task is assigned, it first uses **SuperGlue** to match the target against its memory:
+
+    * **Match Found**: Navigates directly to the stored location.
+    * **No Match**: Falls back to Frontier Exploration to search the unseen areas.
+
+- [x] **`gt_goat` (Oracle / Upper Bound)**
+
+  * **Operation**: Similar to the standard GOAT agent but replaces the visual perception module.
+  * **Difference**: Instead of using Detic, it utilizes **Simulator Ground Truth** labels for perfect object recognition.
+  * *Note: Represents the theoretical performance upper bound by eliminating perception errors.*
+
+- [x] **`exp_goat` (Pre-Mapping / Offline GOAT)**
+
+  * **Operation**: A "scan-then-act" variant. It performs a complete **Frontier Exploration** of the environment *first* to build a comprehensive image memory (optimizations required for high memory usage).
+  * **Logic**: When a task is assigned, it attempts to navigate solely by matching the target against this pre-recorded memory. If the matching fails, the task is abandoned without further exploration.
+
 
 ### 🛠 Code & Data
 - [ ] **Refactoring:** Fixed similarity calculation bugs and improved stability.
@@ -279,7 +307,7 @@ Don't panic if you encounter pip installation conflicts, this is a normal occurr
 * webdataset: 0.1.40
 * huggingface-hub: 0.17.3
 * pyarrow: 13.0.0
-* timm: 0.4.12
+* timm: 1.0.17
 
 #### If the `SuperGluePretrainedNetwork` directory is empty.
 ```bash
@@ -289,3 +317,6 @@ git submodule sync src/lagmemo/lagmemo/agent/imagenav_agent/SuperGluePretrainedN
 # Force update and initialization of the submodule
 git submodule update --init --force src/lagmemo/lagmemo/agent/imagenav_agent/SuperGluePretrainedNetwork
 ```
+
+#### No module named 'centernet'
+

@@ -50,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--baseline_config_path",
         type=str,
-        default="project/config/agent/hm3d_eval_goat.yaml",
+        default="project/config/agent/hm3d_eval_gt_goat.yaml",
         help="Path to config yaml",
     )
     parser.add_argument(
