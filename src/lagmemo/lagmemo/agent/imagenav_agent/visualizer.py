@@ -187,12 +187,15 @@ class NavVisualizer:
         self.visited_map_vis = None
         self.last_xy = None
         self.ind_frame_height = 450
+        # 存储智能体轨迹位置用于渐变绘制
+        self.trajectory_positions = []
 
     def reset(self) -> None:
         self.vis_dir = self.default_vis_dir
         self.image_vis = None
         self.visited_map_vis = np.zeros(self.map_shape)
         self.last_xy = None
+        self.trajectory_positions = []  # 重置轨迹位置列表
 
     def set_vis_dir(self, episode_id: str) -> None:
         self.vis_dir = os.path.join(self.default_vis_dir, str(episode_id))
@@ -347,6 +350,88 @@ class NavVisualizer:
         # wxl, draw agent arrow for frontier obstacle map
         curr_x, curr_y, curr_o, gy1, gy2, gx1, gx2 = sensor_pose
         gy1, gy2, gx1, gx2 = int(gy1), int(gy2), int(gx1), int(gx2)
+        
+        # 在 frontier_frame 上绘制渐变轨迹
+        if len(self.trajectory_positions) >= 2:
+            vis_trajectory_frontier = []
+            for traj_x, traj_y in self.trajectory_positions:
+                # frontier_frame 的坐标系（不翻转 y 轴）
+                vis_x = (traj_x * 100.0 / self.map_resolution - gx1) * 480 / obstacle_map.shape[0]
+                vis_y = (traj_y * 100.0 / self.map_resolution - gy1) * 480 / obstacle_map.shape[1]
+                vis_trajectory_frontier.append((vis_x, vis_y))
+            
+            # 绘制渐变轨迹
+            frontier_frame = self.draw_gradient_trajectory(
+                frontier_frame,
+                vis_trajectory_frontier,
+                start_color=(255, 200, 150),  # 浅蓝色 (BGR)
+                end_color=(0, 0, 200),        # 深红色 (BGR)
+                line_width=2,
+            )
+        
+        # ============ 绘制算法关键节点 ============
+        # 坐标转换规则说明（与智能体箭头的 pos 计算保持一致）：
+        # 在 planner 中：start = [start_y - gx1, start_x - gy1]（注意 x/y 交换）
+        # 在 visualize 中：sensor_pose 解包顺序不同，导致 gx1/gy1 含义交换
+        # pos[0] = (curr_x - gx1) * 480 / shape[0]  <- 对应 stg_col 方向
+        # pos[1] = (curr_y - gy1) * 480 / shape[1]  <- 对应 stg_row 方向
+        # 所以：vis_x 用 shape[0] 缩放，vis_y 用 shape[1] 缩放
+        map_h, map_w = obstacle_map.shape[:2]
+        scale_x = 480.0 / map_h  # 与 pos[0] 一致
+        scale_y = 480.0 / map_w  # 与 pos[1] 一致
+        frame_h, frame_w = frontier_frame.shape[:2]
+        
+        # 1. 绘制 Frontiers（边界探索点）- 蓝色圆圈
+        if frontiers is not None and len(frontiers) > 0:
+            for frontier_pt in frontiers:
+                # frontiers 坐标格式待确认
+                fx, fy = frontier_pt[0], frontier_pt[1]
+                vis_fx = int(fx)
+                vis_fy = int(fy)
+                if 0 <= vis_fx < frame_w and 0 <= vis_fy < frame_h:
+                    cv2.circle(frontier_frame, (vis_fx, vis_fy), radius=6, color=(255, 100, 0), thickness=2)  # 蓝色圆圈
+        
+        # 2. 绘制 Goal Map 区域（目标区域）- 绿色半透明区域和绿色星号
+        # 注意：只有当 found_goal=True 时 goal_map 才是真正的目标区域
+        # 当 found_goal=False 时，goal_map 实际上等于 frontier_map
+        if found_goal and goal_map is not None and np.any(goal_map > 0):
+            goal_points = np.where(goal_map > 0)
+            if len(goal_points[0]) > 0:
+                # 创建绿色半透明叠加层来显示目标区域
+                overlay = frontier_frame.copy()
+                for i in range(len(goal_points[0])):
+                    row, col = goal_points[0][i], goal_points[1][i]
+                    vis_x = int(col * scale_x)
+                    vis_y = int(row * scale_y)
+                    if 0 <= vis_x < frame_w and 0 <= vis_y < frame_h:
+                        cv2.circle(overlay, (vis_x, vis_y), radius=3, color=(0, 255, 0), thickness=-1)
+                # 叠加半透明效果
+                cv2.addWeighted(overlay, 0.4, frontier_frame, 0.6, 0, frontier_frame)
+                
+                # 在目标区域中心绘制绿色星号
+                goal_center_row = int(np.mean(goal_points[0]))
+                goal_center_col = int(np.mean(goal_points[1]))
+                vis_goal_center_x = int(goal_center_col * scale_x)
+                vis_goal_center_y = int(goal_center_row * scale_y)
+                if 0 <= vis_goal_center_x < frame_w and 0 <= vis_goal_center_y < frame_h:
+                    self._draw_star(frontier_frame, vis_goal_center_x, vis_goal_center_y, 
+                                   radius=12, color=(0, 255, 0), thickness=2)
+        
+        # 3. 绘制 Closest Goal（最近目标点）- 红色实心圆
+        # closest_goal_map 是与 obstacle_map 相同大小的局部地图
+        if closest_goal_map is not None and np.any(closest_goal_map > 0):
+            goal_points = np.where(closest_goal_map > 0)
+            if len(goal_points[0]) > 0:
+                # goal_points[0] 是 rows, goal_points[1] 是 cols
+                goal_center_row = int(np.mean(goal_points[0]))
+                goal_center_col = int(np.mean(goal_points[1]))
+                # 使用与 pos 相同的缩放方式
+                vis_goal_x = int(goal_center_col * scale_x)
+                vis_goal_y = int(goal_center_row * scale_y)
+                if 0 <= vis_goal_x < frame_w and 0 <= vis_goal_y < frame_h:
+                    cv2.circle(frontier_frame, (vis_goal_x, vis_goal_y), radius=10, color=(0, 0, 255), thickness=-1)  # 红色实心圆
+        # ============ 关键节点绘制结束 ============
+        
         pos = (
                     (curr_x * 100.0 / self.map_resolution - gx1) * 480 / obstacle_map.shape[0],
                     (curr_y * 100.0 / self.map_resolution - gy1) * 480 / obstacle_map.shape[1],
@@ -356,6 +441,9 @@ class NavVisualizer:
         color = MAP_COLOR_PALETTE[9:12][::-1]
 
         cv2.drawContours(frontier_frame, [agent_arrow], 0, color, -1)
+        
+        # 为 frontier_frame 添加边框和标签
+        frontier_frame = self._add_frontier_frame_label(frontier_frame)
 
         # 添加object/description map, wxl, 2025.2.21
         if td_map_frame is None and goal_frame is not None:
@@ -710,6 +798,57 @@ class NavVisualizer:
         )
         return frame
 
+    def draw_gradient_trajectory(
+        self,
+        image: np.ndarray,
+        positions: List[tuple],
+        start_color: tuple = (200, 200, 255),  # 浅色 (浅蓝色)
+        end_color: tuple = (0, 0, 180),        # 深色 (深红色)
+        line_width: int = 2,
+    ) -> np.ndarray:
+        """
+        在地图上绘制渐变颜色的轨迹路径。
+        
+        Args:
+            image: 要绘制的图像
+            positions: 轨迹位置列表，每个元素为 (x, y) 像素坐标
+            start_color: 起始颜色 (BGR格式)，用于最早的位置
+            end_color: 结束颜色 (BGR格式)，用于当前位置
+            line_width: 轨迹线宽度
+        
+        Returns:
+            绘制了轨迹的图像
+        """
+        if len(positions) < 2:
+            return image
+        
+        n_points = len(positions)
+        
+        # 绘制轨迹线段，每段使用不同的透明度/颜色
+        for i in range(1, n_points):
+            # 计算插值比例 (0.0 到 1.0)
+            alpha = i / (n_points - 1) if n_points > 1 else 1.0
+            
+            # 线性插值计算当前颜色
+            color = tuple(
+                int(start_color[c] + alpha * (end_color[c] - start_color[c]))
+                for c in range(3)
+            )
+            
+            # 获取前后两个点
+            pt1 = (int(positions[i - 1][0]), int(positions[i - 1][1]))
+            pt2 = (int(positions[i][0]), int(positions[i][1]))
+            
+            # 绘制线段
+            cv2.line(image, pt1, pt2, color, line_width, cv2.LINE_AA)
+        
+        # 在当前位置绘制一个小圆点，用深色标识
+        if len(positions) > 0:
+            curr_pos = (int(positions[-1][0]), int(positions[-1][1]))
+            cv2.circle(image, curr_pos, line_width + 2, end_color, -1)
+        
+        return image
+
     def make_map_preds(
         self,
         sensor_pose: np.ndarray,
@@ -745,6 +884,10 @@ class NavVisualizer:
                 last_pose, curr_pose, self.visited_map_vis[gy1:gy2, gx1:gx2]
             )
         self.last_xy = (curr_x, curr_y)
+        
+        # 记录当前位置用于渐变轨迹绘制
+        # 存储的是全局坐标，在绘制时会转换为可视化坐标
+        self.trajectory_positions.append((curr_x, curr_y))
 
         semantic_map += PI.SEM_START
 
@@ -791,6 +934,27 @@ class NavVisualizer:
         new_h = self.ind_frame_height - text_bar_height - 2 * border_size
         new_w = int(new_h / semantic_map_vis.shape[0] * semantic_map_vis.shape[1])
         semantic_map_vis = cv2.resize(semantic_map_vis, (new_w, new_h))
+
+        # 绘制渐变轨迹 - 将全局坐标转换为可视化坐标
+        if len(self.trajectory_positions) >= 2:
+            vis_trajectory = []
+            for traj_x, traj_y in self.trajectory_positions:
+                # 转换坐标到480x480地图坐标系，然后再缩放到当前可视化尺寸
+                vis_x = (traj_x * 100.0 / self.map_resolution - gx1) * 480 / obstacle_map.shape[0]
+                vis_y = (obstacle_map.shape[1] - traj_y * 100.0 / self.map_resolution + gy1) * 480 / obstacle_map.shape[1]
+                # 缩放到最终可视化尺寸
+                vis_x = vis_x * new_w / old_w
+                vis_y = vis_y * new_h / old_h
+                vis_trajectory.append((vis_x, vis_y))
+            
+            # 绘制渐变轨迹 (浅蓝色 -> 深红色)
+            semantic_map_vis = self.draw_gradient_trajectory(
+                semantic_map_vis,
+                vis_trajectory,
+                start_color=(255, 200, 150),  # 浅蓝色 (BGR)
+                end_color=(0, 0, 200),        # 深红色 (BGR)
+                line_width=2,
+            )
 
         # Agent arrow
         pos = (
@@ -913,6 +1077,148 @@ class NavVisualizer:
         frame = np.concatenate([side, frame, side], axis=1)
         top = np.ones((border_size, w + 2 * border_size, 3), dtype=np.uint8) * 255
         frame = np.concatenate([top, frame, top], axis=0)
+        return frame
+
+    def _draw_star(
+        self, 
+        image: np.ndarray, 
+        cx: int, 
+        cy: int, 
+        radius: int = 10, 
+        color: tuple = (0, 255, 0), 
+        thickness: int = 2
+    ) -> None:
+        """
+        在图像上绘制一个五角星。
+        
+        Args:
+            image: 要绘制的图像
+            cx, cy: 星号中心坐标
+            radius: 外顶点到中心的距离
+            color: 颜色 (BGR)
+            thickness: 线条粗细，-1为填充
+        """
+        outer_radius = radius
+        inner_radius = radius * 0.4
+        
+        # 计算五角星的顶点（从顶部开始，顺时针）
+        points = []
+        for i in range(10):
+            angle = np.pi / 2 + i * np.pi / 5  # 从顶部开始
+            r = outer_radius if i % 2 == 0 else inner_radius
+            x = int(cx + r * np.cos(angle))
+            y = int(cy - r * np.sin(angle))
+            points.append([x, y])
+        
+        points = np.array(points, dtype=np.int32)
+        cv2.polylines(image, [points], isClosed=True, color=color, thickness=thickness)
+        if thickness == -1:
+            cv2.fillPoly(image, [points], color=color)
+
+    def _add_frontier_frame_label(self, frontier_frame: np.ndarray) -> np.ndarray:
+        """为 frontier_frame 添加边框、标签和图例 (Navigable Map)"""
+        border_size = 10
+        text_bar_height = 50 - border_size
+        
+        # 调整大小以匹配其他地图帧
+        new_h = self.ind_frame_height - text_bar_height - 2 * border_size
+        new_w = int(new_h / frontier_frame.shape[0] * frontier_frame.shape[1])
+        frontier_frame = cv2.resize(frontier_frame, (new_w, new_h))
+        
+        # ============ 在地图内部右上角添加图例 ============
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        legend_font_scale = 0.35
+        legend_thickness = 1
+        
+        legend_items = [
+            ((255, 100, 0), "Frontiers", "circle"),         # 蓝色圆圈
+            ((0, 255, 0), "Goal Region", "star"),           # 绿色星号（目标区域）
+            ((0, 0, 255), "Closest Goal", "filled_circle"), # 红色实心圆
+        ]
+        
+        # 计算图例背景大小
+        line_height = 16
+        legend_padding = 5
+        max_text_width = 0
+        for _, item_text, _ in legend_items:
+            text_width = cv2.getTextSize(item_text, font, legend_font_scale, legend_thickness)[0][0]
+            max_text_width = max(max_text_width, text_width)
+        
+        legend_width = max_text_width + 25 + legend_padding * 2  # 符号宽度 + 文字 + padding
+        legend_height = line_height * len(legend_items) + legend_padding * 2
+        
+        # 在右上角绘制半透明背景
+        legend_x = new_w - legend_width - 5
+        legend_y = 5
+        
+        # 创建半透明白色背景
+        overlay = frontier_frame.copy()
+        cv2.rectangle(overlay, (legend_x, legend_y), 
+                     (legend_x + legend_width, legend_y + legend_height), 
+                     (255, 255, 255), -1)
+        cv2.addWeighted(overlay, 0.7, frontier_frame, 0.3, 0, frontier_frame)
+        
+        # 绘制图例边框
+        cv2.rectangle(frontier_frame, (legend_x, legend_y), 
+                     (legend_x + legend_width, legend_y + legend_height), 
+                     (150, 150, 150), 1)
+        
+        # 绘制图例项
+        for i, (item_color, item_text, item_shape) in enumerate(legend_items):
+            item_y = legend_y + legend_padding + i * line_height + line_height // 2 + 2
+            symbol_x = legend_x + legend_padding + 6
+            
+            if item_shape == "circle":
+                cv2.circle(frontier_frame, (symbol_x, item_y), 4, item_color, 1)
+            elif item_shape == "star":
+                self._draw_star(frontier_frame, symbol_x, item_y, radius=5, color=item_color, thickness=1)
+            elif item_shape == "filled_circle":
+                cv2.circle(frontier_frame, (symbol_x, item_y), 4, item_color, -1)
+            
+            # 绘制图例文字
+            text_x = symbol_x + 10
+            cv2.putText(
+                frontier_frame, item_text, (text_x, item_y + 3),
+                font, legend_font_scale, (30, 30, 30), legend_thickness, cv2.LINE_AA
+            )
+        # ============ 图例绘制结束 ============
+        
+        # 添加地图边框线
+        color_outline = [100, 100, 100]
+        h, w = frontier_frame.shape[:2]
+        frontier_frame[0, 0:] = color_outline
+        frontier_frame[h - 1, 0:] = color_outline
+        frontier_frame[0:, 0] = color_outline
+        frontier_frame[0:, w - 1] = color_outline
+        
+        # 添加白色边框
+        frontier_frame = self._add_border(frontier_frame, border_size)
+        w = frontier_frame.shape[1]
+        
+        # 添加标题栏
+        top_bar = np.ones((text_bar_height, w, 3), dtype=np.uint8) * 255
+        frame = np.concatenate([top_bar, frontier_frame.astype(np.uint8)], axis=0)
+        
+        # 绘制标题文字
+        fontScale = 0.8
+        color = (20, 20, 20)
+        thickness = 2
+        
+        text = "Navigable Map"
+        textsize = cv2.getTextSize(text, font, fontScale, thickness)[0]
+        textX = (w - textsize[0]) // 2
+        textY = (text_bar_height + border_size + textsize[1]) // 2
+        frame = cv2.putText(
+            frame,
+            text,
+            (textX, textY),
+            font,
+            fontScale,
+            color,
+            thickness,
+            cv2.LINE_AA,
+        )
+        
         return frame
 
     # def _found_goal_detection(self, view: np.ndarray, alpha: float = 0.4) -> np.ndarray:
