@@ -25,11 +25,11 @@ class InstanceView:
     cropped_image: Optional[np.ndarray] = None
     embedding: Optional[np.ndarray] = None
     # mask of instance in the current image
-    mask: np.ndarray = None
+    mask: Optional[np.ndarray] = None
     # point cloud of instance in the current image
-    point_cloud: np.ndarray = None
+    point_cloud: Optional[np.ndarray] = None
     category_id: Optional[int] = None
-    pose: np.ndarray = None
+    pose: Optional[np.ndarray] = None
     instance_id: Optional[int] = None
     object_coverage: Optional[int] = None
 
@@ -72,8 +72,8 @@ class Instance:
         category_id: category id of instance
         instance_views: list of InstanceView objects
         """
-        self.name = None
-        self.category_id = None
+        self.name: Optional[str] = None
+        self.category_id: Optional[int] = None
         self.instance_views = []
 
 
@@ -88,9 +88,9 @@ class InstanceMemory:
     timesteps: list of timesteps
     """
 
-    images: List[torch.Tensor] = []
+    images: List[List[torch.Tensor]] = []
     instance_views: List[Dict[int, Instance]] = []
-    point_cloud: List[torch.Tensor] = []
+    point_cloud: List[List[torch.Tensor]] = []
     unprocessed_views: List[Dict[int, InstanceView]] = []
     local_id_to_global_id_map: List[Dict[int, int]] = []
     timesteps: List[int] = []
@@ -126,8 +126,8 @@ class InstanceMemory:
         self.reset()
 
     def reset(self):
-        self.images = [None for _ in range(self.num_envs)]
-        self.point_cloud = [None for _ in range(self.num_envs)]
+        self.images = [[] for _ in range(self.num_envs)]
+        self.point_cloud = [[] for _ in range(self.num_envs)]
         self.instance_views = [{} for _ in range(self.num_envs)]
         self.unprocessed_views = [{} for _ in range(self.num_envs)]
         self.local_id_to_global_id_map = [{} for _ in range(self.num_envs)]
@@ -142,6 +142,8 @@ class InstanceMemory:
 
         # get instance view
         instance_view = self.unprocessed_views[env_id].get(local_instance_id, None)
+        if instance_view is None:
+            return
         if instance_view is None and self.debug_visualize:
             print(
                 "instance view with local instance id",
@@ -173,10 +175,14 @@ class InstanceMemory:
             os.makedirs(instance_write_path, exist_ok=True)
 
             step = instance_view.timestep
+            if step >= len(self.images[env_id]):
+                return
             full_image = self.images[env_id][step]
             full_image = full_image.numpy().astype(np.uint8).transpose(1, 2, 0)
             full_image = full_image[..., ::-1]
             # overlay mask on image
+            if instance_view.mask is None:
+                return
             mask = np.zeros(full_image.shape, full_image.dtype)
             mask[:, :] = (0, 0, 255)
             mask = cv2.bitwise_and(mask, mask, mask=instance_view.mask.astype(np.uint8))
@@ -210,20 +216,9 @@ class InstanceMemory:
 
         self.unprocessed_views[env_id] = {}
         self.local_id_to_global_id_map[env_id] = {}
-        # append image to list of images
-        if self.images[env_id] is None:
-            self.images[env_id] = image.unsqueeze(0).detach().cpu()
-        else:
-            self.images[env_id] = torch.cat(
-                [self.images[env_id], image.unsqueeze(0).detach().cpu()], dim=0
-            )
-        if self.point_cloud[env_id] is None:
-            self.point_cloud[env_id] = point_cloud.unsqueeze(0).detach().cpu()
-        else:
-            self.point_cloud[env_id] = torch.cat(
-                [self.point_cloud[env_id], point_cloud.unsqueeze(0).detach().cpu()],
-                dim=0,
-            )
+        # Store history using list append (avoids expensive torch.cat reallocations each step)
+        self.images[env_id].append(image.detach().cpu())
+        self.point_cloud[env_id].append(point_cloud.detach().cpu())
 
         # unique instances
         instance_ids = torch.unique(instance_map)
@@ -292,7 +287,6 @@ class InstanceMemory:
 
             # get point cloud
             point_cloud_instance = point_cloud[instance_mask_downsampled.cpu().numpy()]
-
             object_coverage = np.sum(instance_mask) / instance_mask.size
 
             # get instance view
@@ -346,8 +340,8 @@ class InstanceMemory:
 
     def reset_for_env(self, env_id: int):
         self.instance_views[env_id] = {}
-        self.images[env_id] = None
-        self.point_cloud[env_id] = None
+        self.images[env_id] = []
+        self.point_cloud[env_id] = []
         self.unprocessed_views[env_id] = {}
         self.timesteps[env_id] = 0
         self.local_id_to_global_id_map[env_id] = {}

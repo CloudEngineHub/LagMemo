@@ -113,9 +113,9 @@ if __name__ == "__main__":
         print("output image and results to", config.DUMP_LOCATION)
     # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/gs_data/val_seen.json.gz'
     # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/lagmemo_new/val_seen.json.gz'
-    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/new_data3/val_seen.json.gz'
+    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/new_data3/val_seen.json.gz'
     # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/3_episode_data/val_seen.json.gz'
-    config['habitat']['dataset']['data_path'] = f'data/datasets/goat/hm3d/{args.input_data}/val_seen.json.gz'
+    # config['habitat']['dataset']['data_path'] = f'data/datasets/goat/hm3d/{args.input_data}/val_seen.json.gz'
     # all_scenes = os.listdir(os.path.dirname(config.habitat.dataset.data_path.format(split=config.habitat.dataset.split)) + "/content/")
     all_scenes = os.listdir('data/datasets/goat/hm3d/gs_data/content/')
     all_scenes = os.listdir('data/datasets/goat/hm3d/new_data3/content/')

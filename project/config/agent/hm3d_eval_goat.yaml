@@ -2,7 +2,7 @@ BASE_TASK_CONFIG_PATH: configs/task/hm3d_challenge2022_val.yaml
 
 NO_GPU: 0                 # 1: ignore IDs above and run on CPU, 0: run on GPUs with IDs above
 NUM_ENVIRONMENTS: 35      # number of environments (per agent process)
-DUMP_LOCATION: datadump/datadump_goat_1219  # path to dump models and log
+DUMP_LOCATION: datadump/2026-01-06/datadump_goat  # path to dump models and log
 EXP_NAME: openvocab_v0.1.1_gt_semantics_600    # experiment name
 VISUALIZE: 0              # 1: render observation and predicted semantic map, 0: no visualization
 PRINT_IMAGES: 1           # 1: save visualization as images, 0: no image saving

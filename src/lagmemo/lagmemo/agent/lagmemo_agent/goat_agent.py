@@ -3,6 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+
 import json
 import time
 from pathlib import Path
@@ -135,7 +136,7 @@ class GoatAgent(Agent):
                 debug_visualize=config.PRINT_IMAGES,
                 config=config,
                 mask_cropped_instances=False,
-                padding_cropped_instances=200
+                padding_cropped_instances=200,
             )
 
         ## imagenav stuff
