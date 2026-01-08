@@ -430,6 +430,7 @@ class NavVisualizer:
                 vis_goal_y = int(goal_center_row * scale_y)
                 if 0 <= vis_goal_x < frame_w and 0 <= vis_goal_y < frame_h:
                     cv2.circle(frontier_frame, (vis_goal_x, vis_goal_y), radius=10, color=(0, 0, 255), thickness=-1)  # 红色实心圆
+
         # ============ 关键节点绘制结束 ============
         
         pos = (
@@ -1174,6 +1175,17 @@ class NavVisualizer:
                 self._draw_star(frontier_frame, symbol_x, item_y, radius=5, color=item_color, thickness=1)
             elif item_shape == "filled_circle":
                 cv2.circle(frontier_frame, (symbol_x, item_y), 4, item_color, -1)
+            elif item_shape == "x":
+                cv2.drawMarker(
+                    frontier_frame,
+                    (symbol_x, item_y),
+                    item_color,
+                    markerType=cv2.MARKER_TILTED_CROSS,
+                    markerSize=10,
+                    thickness=1,
+                )
+            elif item_shape == "dot":
+                cv2.circle(frontier_frame, (symbol_x, item_y), 2, item_color, -1)
             
             # 绘制图例文字
             text_x = symbol_x + 10

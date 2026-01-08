@@ -11,6 +11,7 @@ import numpy as np
 import skfmm
 import skimage
 from numpy import ma
+from typing import Optional
 
 
 class FMMPlanner:
@@ -81,7 +82,7 @@ class FMMPlanner:
         self,
         goal_map: np.ndarray,
         timestep: int = 0,
-        dd: np.ndarray = None,
+        dd: Optional[np.ndarray] = None,
         map_downsample_factor: float = 1.0,
         map_update_frequency: int = 1,
     ):

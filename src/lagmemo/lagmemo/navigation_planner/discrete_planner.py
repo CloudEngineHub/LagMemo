@@ -6,7 +6,7 @@ import math
 import os
 import shutil
 import time
-from typing import List, Tuple
+from typing import List, Optional, Tuple, Union
 
 import cv2
 import matplotlib.pyplot as plt
@@ -25,7 +25,6 @@ from lagmemo.utils.spot import angular_distance_from_angle
 from .fmm_planner import FMMPlanner
 
 CM_TO_METERS = 0.01
-
 
 def add_boundary(mat: np.ndarray, value=1) -> np.ndarray:
     h, w = mat.shape
@@ -166,11 +165,17 @@ class DiscretePlanner:
         frontier_map: np.ndarray,
         sensor_pose: np.ndarray,
         found_goal: bool,
-        goal_pose: float = None,
+        goal_pose: Optional[float] = None,
         debug: bool = False,
         use_dilation_for_stg: bool = False,
-        timestep: int = None,
-    ) -> Tuple[DiscreteNavigationAction, np.ndarray]:
+        timestep: Optional[int] = None,
+    ) -> Tuple[
+        Union[DiscreteNavigationAction, ContinuousNavigationAction],
+        np.ndarray,
+        Tuple[int, int],
+        np.ndarray,
+        bool,
+    ]:
         """Plan a low-level action.
 
         Args:
@@ -202,6 +207,10 @@ class DiscretePlanner:
         ]
         start = pu.threshold_poses(start, obstacle_map.shape)
         start = np.array(start)
+
+        # help type-checkers; these are always initialized in reset()
+        assert self.visited_map is not None
+        assert self.obs_dilation_selem is not None
 
         if debug:
             print()
@@ -381,8 +390,8 @@ class DiscretePlanner:
         )
 
         self.last_action = action
-        # return action, closest_goal_map, short_term_goal, dilated_obstacles
         return action, closest_goal_map, (stg_x, stg_y), dilated_obstacles, replan
+
 
     def get_action(
         self,
@@ -417,7 +426,9 @@ class DiscretePlanner:
                 if np.abs(relative_angle_to_stg) > self.turn_angle / 2.0:
                     # Must return commands in radians and meters
                     relative_angle_to_stg = math.radians(relative_angle_to_stg)
-                    action = ContinuousNavigationAction([0, 0, -relative_angle_to_stg])
+                    action = ContinuousNavigationAction(
+                        np.array([0.0, 0.0, -relative_angle_to_stg], dtype=np.float32)
+                    )
                 else:
                     # Must return commands in radians and meters
                     relative_angle_to_stg = math.radians(relative_angle_to_stg)
@@ -464,7 +475,7 @@ class DiscretePlanner:
                     relative_angle_to_closest_goal
                 )
                 action = ContinuousNavigationAction(
-                    [0, 0, -relative_angle_to_closest_goal]
+                    np.array([0.0, 0.0, -relative_angle_to_closest_goal], dtype=np.float32)
                 )
             else:
                 action = DiscreteNavigationAction.STOP
@@ -477,13 +488,13 @@ class DiscretePlanner:
         self,
         obstacle_map: np.ndarray,
         goal_map: np.ndarray,
-        start: List[int],
+        start: Union[List[int], np.ndarray],
         planning_window: List[int],
         plan_to_dilated_goal=False,
         frontier_map=None,
         visualize=False,
         orientation=None,
-    ) -> Tuple[Tuple[int, int], np.ndarray, bool, bool]:
+    ) -> Tuple[Tuple[int, int], np.ndarray, bool, bool, Tuple[int, int], np.ndarray]:
         """Get short-term goal.
 
         Args:
@@ -502,6 +513,8 @@ class DiscretePlanner:
             stop: binary flag to indicate we've reached the goal
         """
         gx1, gx2, gy1, gy2 = planning_window
+        assert self.visited_map is not None
+        assert self.obs_dilation_selem is not None
         (x1, y1,) = (
             0,
             0,
@@ -531,6 +544,7 @@ class DiscretePlanner:
         # get closest navigable point
         cnp = traversible_points[np.argmin(dists)]
         assert traversible[cnp[0],cnp[1]] == 1
+
         # print(state)
         # if traversible[state[0],state[1]] == 0:
             # import pdb; pdb.set_trace()
@@ -550,7 +564,7 @@ class DiscretePlanner:
             short_term_goal = int(stg_x), int(stg_y)
             replan = False
             stop = False
-            closest_goal_pt = long_term_goal
+            closest_goal_pt = (int(long_term_goal[0]), int(long_term_goal[1]))
             vis_goal_map = np.zeros_like(dists)
             vis_goal_map[long_term_goal[0],long_term_goal[1]] = 1
         else:
@@ -589,6 +603,7 @@ class DiscretePlanner:
             # only select points that are within step-size
             circular_mask = proto_dist <= self.step_size
             total_cost.mask |= ~circular_mask
+
             if visualize:
                 cv2.imshow('proto_dist',proto_dist/proto_dist.max())
                 cv2.imshow('local_dists',local_dists/local_dists.max())
@@ -616,6 +631,7 @@ class DiscretePlanner:
             # print("stop", stop)
             closest_goal_pt = (0,0)
             vis_goal_map = np.zeros_like(dists)
+
         return (
             short_term_goal,
             vis_goal_map,
@@ -723,6 +739,7 @@ class DiscretePlanner:
         curr_loc_map[start[0], start[1]] = 1
         # curr_loc_map[short_term_goal[0], short_term_goal]1]] = 1
         vis_planner.set_multi_goal(curr_loc_map)
+        assert vis_planner.fmm_dist is not None
         fmm_dist_ = vis_planner.fmm_dist.copy()
         # find closest point on non-dilated goal map
         goal_map_ = goal_map.copy()
@@ -751,6 +768,10 @@ class DiscretePlanner:
 
     def _check_collision(self):
         """Check whether we had a collision and update the collision map."""
+        assert self.last_pose is not None
+        assert self.curr_pose is not None
+        assert self.collision_map is not None
+        assert self.col_width is not None
         x1, y1, t1 = self.last_pose
         x2, y2, _ = self.curr_pose
         buf = 4
