@@ -175,9 +175,9 @@ class InstanceMemory:
             os.makedirs(instance_write_path, exist_ok=True)
 
             step = instance_view.timestep
-            if step >= len(self.images[env_id]):
+            if len(self.images[env_id]) == 0:
                 return
-            full_image = self.images[env_id][step]
+            full_image = self.images[env_id][-1]  # Always use the latest image
             full_image = full_image.numpy().astype(np.uint8).transpose(1, 2, 0)
             full_image = full_image[..., ::-1]
             # overlay mask on image
@@ -216,8 +216,8 @@ class InstanceMemory:
 
         self.unprocessed_views[env_id] = {}
         self.local_id_to_global_id_map[env_id] = {}
-        # Store history using list append (avoids expensive torch.cat reallocations each step)
-        self.images[env_id].append(image.detach().cpu())
+        # Store only the latest image for debug visualization (saves ~6.5GB memory)
+        self.images[env_id] = [image.detach().cpu()]
         self.point_cloud[env_id].append(point_cloud.detach().cpu())
 
         # unique instances

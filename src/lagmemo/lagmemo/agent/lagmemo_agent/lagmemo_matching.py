@@ -160,12 +160,10 @@ class GoatMatching(Matching):
                 ):
                     continue
                 if use_full_image:
-                    # Keep original behavior: use the full image at the timestep this view was recorded.
+                    # Use the latest full image (memory optimization: only keep the latest one)
                     if not instance_memory.images[0]:
                         continue
-                    if inst_view.timestep >= len(instance_memory.images[0]):
-                        continue
-                    img = instance_memory.images[0][inst_view.timestep].cpu().numpy()
+                    img = instance_memory.images[0][-1].cpu().numpy()
                     img = np.transpose(img, (1, 2, 0))
                 else:
                     img = inst_view.cropped_image
