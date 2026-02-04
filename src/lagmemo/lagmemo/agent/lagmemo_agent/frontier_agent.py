@@ -572,6 +572,9 @@ class FrontierAgent(Agent):
 
     def act(self, obs: Observations) -> Tuple[DiscreteNavigationAction, Dict[str, Any]]:
         """Act end-to-end."""
+        # `info` is optional (used for visualization). Always initialize it so that
+        # non-visualization runs (e.g. dataset collection) don't crash.
+        info = None
         current_task = obs.task_observations["tasks"][self.current_task_idx]
         task_type = current_task["type"]
         
