@@ -303,9 +303,24 @@ pip install -e .
 - **After install them, please change the relative args in `eval_episode.py`**
 
 # ready to start!
+
+A convenience script `run_eval_gpu1.sh` is provided to run evaluation with common options:
+
 ```bash
-python project/habitat_lagmemo/eval_episode_glue.py
-# output path is written in /project/config/agent/hm3d_eval.yaml DUMP_LOCATION
+# Usage: bash run_eval_gpu1.sh [mode] [scene] [input_data]
+#   mode      : glue (default) | data_record | goat
+#   scene     : scene name, e.g. 5cdEh9F2hJL (default) | 4ok3usBNeis | Nfvxx8J5NCo | TEEsavR23oF | all
+#   input_data: dataset dir, e.g. 3_episode_data (default) | new_data3
+
+# Run LagMemo agent on a single scene
+bash run_eval_gpu1.sh glue 5cdEh9F2hJL 3_episode_data
+
+# Or run directly
+python project/habitat_lagmemo/eval_episode_glue.py \
+    --scenes 5cdEh9F2hJL \
+    --input_data 3_episode_data \
+    --output_path datadump/my_experiment
+# output path can also be set in project/config/agent/hm3d_eval.yaml DUMP_LOCATION
 ```
 
 ## Problems
