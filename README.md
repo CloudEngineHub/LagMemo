@@ -4,6 +4,13 @@
 > **Current Scope:** This repository currently focuses on the **Visual Navigation** implementation of LagMemo. It provides the codebase for reproducing navigation experiments using pre-reconstructed GS memory and goal lists.
 
 ## 📅 News
+- **[2026/02]** ✅ Major update released on `main`:
+  - Added 4 navigation baselines: **CoW** (naive exploration), **GOAT** (modular), **GT-GOAT** (oracle upper bound), **Exp-GOAT** (pre-mapping variant)
+  - Fixed agent **stuck** issue in navigation planner (`discrete_planner`, `frontier_planner`, `fmm_planner`)
+  - Reduced **memory usage** in instance tracking and feature matching modules
+  - Added **visualizer** enhancements: keypoint and path overlay support
+  - Updated episode dataset to **`3_episode_data`** (4 scenes × 3 episodes, fully aligned with `lagmemo_goal.json`)
+  - Corrected data download instructions and file structure in README
 - **[2025/12/13]** 🚀 The navigation evaluation code for LagMemo is currently being cleaned up and organized, including environment setup, lagmemo agent implementation. A polished version will be released soon.
 
 ---
@@ -56,38 +63,47 @@
 
 ## Data
 
-please download goat episode dataset from [here](https://drive.google.com/file/d/1N0UbpXK3v7oTphC4LoDqlNeMHbrwkbPe/view?usp=sharing), and put it as ***/data/datasets/goat/hm3d/...***
+This project requires two types of data:
+
+### 1. LagMemo Data (PKU Disk)
+
+Download from [PKU Disk](https://disk.pku.edu.cn/link/AA6BD829693D7E4987B6870878EE5C57F8) and place as follows:
+
+- **`lagmemo_goal.json`**: Pre-computed navigation waypoints → `data/lagmemo_goal.json`
+- **`goal_list.json`**: Goal list required for the program → `data/goal_list.json`
+- **`3_episode_data/`**: Episode dataset (4 scenes × 3 episodes each) → `data/datasets/goat/hm3d/3_episode_data/`
+
+### 2. HM3D Scene Assets (GOAT-Bench)
+
+Download the HM3D scene assets from [GOAT-Bench](https://drive.google.com/file/d/1N0UbpXK3v7oTphC4LoDqlNeMHbrwkbPe/view?usp=sharing) and symlink to this repo:
 
 ```bash
-# scene datasets
-ln -s hm3d_path /path/to/data/scene_datasets/hm3d
-
+ln -s /path/to/hm3d data/scene_datasets/hm3d
 ```
 
-This repository focuses on multi-goal visual navigation and goal verification mechanism using pre-computed navigation waypoints.
-Please download the required data files from [Link](https://disk.pku.edu.cn/link/AA6BD829693D7E4987B6870878EE5C57F8) and place them in the `data/` directory:
-1.  **`lagmemo_goal.json`**: Contains waypoints calculated by the mapping and memory module.
-2.  **`goal_list.json`**: A list of goals required to ensure the program runs without errors.
+Only the 4 scenes used in `3_episode_data` are required: `TEEsavR23oF`, `5cdEh9F2hJL`, `4ok3usBNeis`, `Nfvxx8J5NCo`.
 
-The file structure should be as follow:
+### Expected File Structure
 
 ```bash
 .
 ├── data
-│   ├── goal_list.json
-│   ├── lagmemo_goal.json
-│   ├── datasets
-│   │   └── goat
-│   │   |   └── hm3d
-|   |   |   |   └── v1
-|   │   │   │   │   ├── train
-|   │   │   │   │   ├── val_seen
-|   │   │   │   │   ├── val_unseen
-|   │   │   │   │   └── val_seen_synonyms
-│   ├── scene_datasets
-│   │   └── hm3d
-│   │   │   ├── 00800-TEEsavR23oF
-│   │   │   ├── ...
+│   ├── lagmemo_goal.json
+│   ├── goal_list.json
+│   ├── datasets
+│   │   └── goat
+│   │       └── hm3d
+│   │           └── 3_episode_data
+│   │               ├── val_seen.json.gz
+│   │               └── content
+│   │                   ├── 4ok3usBNeis.json.gz
+│   │                   ├── 5cdEh9F2hJL.json.gz
+│   │                   ├── Nfvxx8J5NCo.json.gz
+│   │                   └── TEEsavR23oF.json.gz
+│   └── scene_datasets
+│       └── hm3d
+│           ├── 00800-TEEsavR23oF
+│           └── ...
 ```
 
 

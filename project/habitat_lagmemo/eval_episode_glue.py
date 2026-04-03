@@ -80,6 +80,18 @@ if __name__ == "__main__":
         default='./src/third_party/ml-mobileclip/checkpoints/mobileclip_s0.pt',
         help='Path to MobileCLIP checkpoint',
     )
+    parser.add_argument(
+        '--output_path',
+        type=str,
+        default="datadump/datadump_glue0820_",
+        help='Path to output directory for results',
+    )
+    parser.add_argument(
+        '--input_data',
+        type=str,
+        default="new_data3",
+        help='choose which data to run, e.g. "new_data3", "3_episode_data"',
+    )
     print("Arguments:")
     args = parser.parse_args()
     print(json.dumps(vars(args), indent=4))
@@ -95,14 +107,17 @@ if __name__ == "__main__":
     }
 
     config = get_config(args.habitat_config_path, args.baseline_config_path)
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/gs_data/val_seen.json.gz'
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/lagmemo_new/val_seen.json.gz'
-    config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/new_data3/val_seen.json.gz'
+    if args.output_path:
+        print("output image and results to", args.output_path)
+        config.DUMP_LOCATION = args.output_path
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/gs_data/val_seen.json.gz'
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/lagmemo_new/val_seen.json.gz'
+    # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/new_data3/val_seen.json.gz'
     # config['habitat']['dataset']['data_path'] = 'data/datasets/goat/hm3d/3_episode_data/val_seen.json.gz'
-    
+    config['habitat']['dataset']['data_path'] = f'data/datasets/goat/hm3d/{args.input_data}/val_seen.json.gz'
     # all_scenes = os.listdir(os.path.dirname(config.habitat.dataset.data_path.format(split=config.habitat.dataset.split)) + "/content/")
     all_scenes = os.listdir('data/datasets/goat/hm3d/gs_data/content/')
-    all_scenes = os.listdir('data/datasets/goat/hm3d/new_data3/content/')
+    all_scenes = os.listdir(f'data/datasets/goat/hm3d/{args.input_data}/content/')
     all_scenes = sorted([x.split('.')[0] for x in all_scenes])
     if args.scenes == "all":
         config.habitat.dataset.content_scenes = all_scenes
