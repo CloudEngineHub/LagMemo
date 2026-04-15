@@ -141,6 +141,19 @@ class DiscretePlanner:
         )
         self.reached_goal_candidate = False
 
+    def reset_collision_state(self) -> None:
+        """Reset collision memory and obstacle dilation between sub-tasks.
+
+        Called by GLUEAgent._handle_stop_action() so each sub-task starts
+        with a clean collision slate.  visited_map is intentionally preserved
+        across sub-tasks (the agent should not re-explore already-visited cells).
+        """
+        self.collision_map = np.zeros(self.map_shape)
+        self.curr_obs_dilation_selem_radius = self.start_obs_dilation_selem_radius
+        self.obs_dilation_selem = skimage.morphology.disk(
+            self.curr_obs_dilation_selem_radius
+        )
+
     def set_vis_dir(self, scene_id: str, episode_id: str):
         self.vis_dir = os.path.join(self.default_vis_dir, f"{scene_id}_{episode_id}")
         shutil.rmtree(self.vis_dir, ignore_errors=True)
@@ -278,8 +291,13 @@ class DiscretePlanner:
             assert self.collision_map is not None
             assert self.curr_obs_dilation_selem_radius is not None
             assert self.obs_dilation_selem is not None
-            # Clean collision map
-            # self.collision_map *= 0
+            # Clean collision map so accumulated ghost obstacles don't permanently
+            # block the planner. In multi-goal episodes this is also called
+            # explicitly between sub-tasks via reset_collision_state().
+            # NOTE: was commented out in commit 94b9fe6 (2026-01-08) — restored
+            # because ghost collisions from early sub-tasks caused FMM to find no
+            # path in later sub-tasks, leading to stuck/sawtooth trajectories.
+            self.collision_map *= 0
             # Reduce obstacle dilation
             if self.curr_obs_dilation_selem_radius > self.min_obs_dilation_selem_radius:
                 self.curr_obs_dilation_selem_radius -= 1
