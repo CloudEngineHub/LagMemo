@@ -4,6 +4,7 @@
 > **Current Scope:** This repository currently focuses on the **Visual Navigation** implementation of LagMemo. It provides the codebase for reproducing navigation experiments using pre-reconstructed GS memory and goal lists.
 
 ## 📅 News
+- **[2026/06]** 🎉 **LagMemo has been accepted to IROS 2026!** Huge thanks to all collaborators. See you in **Pittsburgh this September** 🇺🇸 — and stay tuned for our upcoming series of works!
 - **[2026/04]** 🗺️ The **3DGS Mapping** module is now open-sourced! Code for generating pre-computed navigation waypoints (`lagmemo_goal.json`) from raw trajectories via 3D Gaussian Splatting is available at [pieceHk/lagmemo_mapping](https://github.com/pieceHk/lagmemo_mapping).
 - **[2026/02]** ✅ Major update released on `main`:
   - Added 4 navigation baselines: **CoW** (naive exploration), **GOAT** (modular), **GT-GOAT** (oracle upper bound), **Exp-GOAT** (pre-mapping variant)
